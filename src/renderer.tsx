@@ -5,7 +5,7 @@ import GraphDialog from './GraphDialog';
 declare global {
     interface Window {
         api: {
-            requestOCR: (data: { filePath: string, description: string, groupName: string }) => Promise<any>;
+            requestOCR: (data: { filePath: string, description: string, groupName: string, agentId?: string }) => Promise<any>;
             getHistory: () => Promise<any[]>;
             getGroups: () => Promise<string[]>;
         };
@@ -19,6 +19,7 @@ const App: React.FC = () => {
     const [result, setResult] = useState<string>('');
     const [groupName, setGroupName] = useState<string>('');
     const [description, setDescription] = useState<string>('');
+    const [agentId, setAgentId] = useState<string>('');
     const [history, setHistory] = useState<any[]>([]);
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
     const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -81,7 +82,7 @@ const App: React.FC = () => {
         setIsProcessing(true);
 
         try {
-            const response = await window.api.requestOCR({ filePath, description, groupName });
+            const response = await window.api.requestOCR({ filePath, description, groupName, agentId });
             setResult(JSON.stringify(response, null, 2));
         } catch (error: any) {
             setResult("에러 났어 ㅠㅠ\n" + error.message);
@@ -198,6 +199,18 @@ const App: React.FC = () => {
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 placeholder="예: 영수증, 신분증 등"
+                                style={{ width: '100%', maxWidth: '300px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                                disabled={isProcessing}
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>에이전트 ID (선택):</label>
+                            <input
+                                type="text"
+                                value={agentId}
+                                onChange={(e) => setAgentId(e.target.value)}
+                                placeholder="입력하지 않으면 모델 파라미터 제외"
                                 style={{ width: '100%', maxWidth: '300px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
                                 disabled={isProcessing}
                             />

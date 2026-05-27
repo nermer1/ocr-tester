@@ -61,8 +61,7 @@ if (!gotTheLock) {
 }
 
 // IPC 핸들러 등록: 렌더러 프로세스(화면)에서 요청하면 이 함수가 실행됩니다.
-ipcMain.handle('perform-ocr', async (event: IpcMainInvokeEvent, data: { filePath: string, description: string, groupName: string }): Promise<any> => {
-    const { filePath, description, groupName } = data;
+ipcMain.handle('perform-ocr', async (event, { filePath, description, groupName, agentId }) => {
     const startTimeMs = Date.now();
     const requestTime = new Date(startTimeMs).toLocaleString();
 
@@ -95,11 +94,9 @@ ipcMain.handle('perform-ocr', async (event: IpcMainInvokeEvent, data: { filePath
 
         // --- 2단계: Job 생성 (/responses) ---
         const agentUrl = `${API_ENDPOINT}/responses`;
-        const agentId = process.env.UPSTAGE_AGENT_ID || "";
-        console.log(`[Upstage OCR] createJob request - url: ${agentUrl}, agentId: ${agentId}`);
+        console.log(`[Upstage OCR] createJob request - url: ${agentUrl}, agentId(Dynamic): ${agentId || 'NONE'}`);
 
-        const requestBody = {
-            model: agentId, // .env의 agentId 적용
+        const requestBody: any = {
             include: ["last"],
             input: [
                 {
@@ -113,6 +110,10 @@ ipcMain.handle('perform-ocr', async (event: IpcMainInvokeEvent, data: { filePath
                 }
             ]
         };
+
+        if (agentId && agentId.trim() !== '') {
+            requestBody.model = agentId.trim();
+        }
 
         const agentRes = await fetch(agentUrl, {
             method: "POST",
