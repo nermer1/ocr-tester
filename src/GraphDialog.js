@@ -1,0 +1,34 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const jsx_runtime_1 = require("react/jsx-runtime");
+const recharts_1 = require("recharts");
+const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return ((0, jsx_runtime_1.jsxs)("div", { style: { backgroundColor: '#fff', padding: '15px', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }, children: [(0, jsx_runtime_1.jsx)("p", { style: { margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '1.1em', color: '#2c3e50', borderBottom: '1px solid #eee', paddingBottom: '5px' }, children: label }), (0, jsx_runtime_1.jsxs)("p", { style: { margin: '5px 0', color: '#e74c3c', fontWeight: 'bold' }, children: ["\u23F3 \uC18C\uC694 \uC2DC\uAC04: ", data.time, "\uCD08"] }), (0, jsx_runtime_1.jsxs)("p", { style: { margin: '5px 0', fontSize: '0.9em', color: '#34495e' }, children: [(0, jsx_runtime_1.jsx)("strong", { children: "\uC0C1\uD0DC:" }), " ", data.status] }), (0, jsx_runtime_1.jsxs)("p", { style: { margin: '5px 0', fontSize: '0.9em', color: '#34495e' }, children: [(0, jsx_runtime_1.jsx)("strong", { children: "\uC694\uCCAD \uC2DC\uAC04:" }), " ", data.requestTime] }), (0, jsx_runtime_1.jsxs)("p", { style: { margin: '5px 0', fontSize: '0.9em', color: '#34495e' }, children: [(0, jsx_runtime_1.jsx)("strong", { children: "\uD30C\uC77C\uBA85:" }), " ", data.fileName, " (", data.fileSize, ")"] }), (0, jsx_runtime_1.jsxs)("p", { style: { margin: '5px 0', fontSize: '0.9em', color: '#34495e' }, children: [(0, jsx_runtime_1.jsx)("strong", { children: "\uC124\uBA85:" }), " ", data.description] })] }));
+    }
+    return null;
+};
+const GraphDialog = ({ groupName, items, onClose }) => {
+    // 항목 개수가 0개면 그래프를 그릴 수 없으므로 처리
+    if (!items || items.length === 0)
+        return null;
+    const data = items.map((itm, idx) => ({
+        name: `${idx + 1}회차`,
+        time: parseFloat(itm.durationSec.replace('초', '')),
+        fileName: itm.fileName || 'N/A',
+        fileSize: itm.fileSize || 'N/A',
+        description: itm.description || 'N/A',
+        requestTime: itm.requestTime || 'N/A',
+        status: itm.status || 'N/A'
+    }));
+    return ((0, jsx_runtime_1.jsx)("div", { style: {
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }, children: (0, jsx_runtime_1.jsxs)("div", { style: {
+                backgroundColor: '#fff', padding: '30px', borderRadius: '12px',
+                width: '700px', maxWidth: '90%', boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+            }, children: [(0, jsx_runtime_1.jsxs)("div", { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #ecf0f1', paddingBottom: '10px' }, children: [(0, jsx_runtime_1.jsxs)("h3", { style: { margin: 0, color: '#2c3e50' }, children: ["\uD83D\uDCCA ", groupName, " - \uC18C\uC694 \uC2DC\uAC04 \uCD94\uC774"] }), (0, jsx_runtime_1.jsx)("button", { onClick: onClose, style: { border: 'none', background: 'transparent', fontSize: '1.5em', cursor: 'pointer', color: '#7f8c8d' }, children: "\u2716" })] }), (0, jsx_runtime_1.jsx)("div", { style: { height: '350px', width: '100%' }, children: (0, jsx_runtime_1.jsx)(recharts_1.ResponsiveContainer, { width: "100%", height: "100%", children: (0, jsx_runtime_1.jsxs)(recharts_1.LineChart, { data: data, children: [(0, jsx_runtime_1.jsx)(recharts_1.CartesianGrid, { strokeDasharray: "3 3", stroke: "#eee" }), (0, jsx_runtime_1.jsx)(recharts_1.XAxis, { dataKey: "name", tick: { fill: '#7f8c8d' } }), (0, jsx_runtime_1.jsx)(recharts_1.YAxis, { tick: { fill: '#7f8c8d' } }), (0, jsx_runtime_1.jsx)(recharts_1.Tooltip, { content: (0, jsx_runtime_1.jsx)(CustomTooltip, {}) }), (0, jsx_runtime_1.jsx)(recharts_1.Line, { type: "monotone", dataKey: "time", stroke: "#3498db", strokeWidth: 3, activeDot: { r: 8, fill: '#e74c3c' } })] }) }) })] }) }));
+};
+exports.default = GraphDialog;

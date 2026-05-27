@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-app/
+renderer.js
+main.js
+preload.js
+temp/
+history.json
+.env.keys
