@@ -8,6 +8,8 @@ declare global {
             requestOCR: (data: { filePath: string, description: string, groupName: string, agentId?: string }) => Promise<any>;
             getHistory: () => Promise<any[]>;
             getGroups: () => Promise<string[]>;
+            getAgents: () => Promise<any[]>;
+            saveAgent: (data: { name: string, agentId: string }) => Promise<any>;
         };
     }
 }
@@ -28,6 +30,12 @@ const App: React.FC = () => {
     const [rawDialogData, setRawDialogData] = useState<any | null>(null);
     const [groupList, setGroupList] = useState<string[]>([]);
     const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState<boolean>(false);
+
+    // Agent 관련 상태
+    const [agentsList, setAgentsList] = useState<any[]>([]);
+    const [isAddingNewAgent, setIsAddingNewAgent] = useState<boolean>(false);
+    const [newAgentName, setNewAgentName] = useState<string>('');
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const loadHistory = async () => {
@@ -44,8 +52,9 @@ const App: React.FC = () => {
         if (currentMenu === 'HISTORY') {
             loadHistory();
         } else if (currentMenu === 'NEW_TEST') {
-            // NEW_TEST 메뉴일 때 그룹명 리스트 로드
+            // NEW_TEST 메뉴일 때 그룹명 리스트 및 에이전트 목록 로드
             window.api.getGroups().then(groups => setGroupList(groups)).catch(console.error);
+            window.api.getAgents().then(agents => setAgentsList(agents)).catch(console.error);
         }
     }, [currentMenu]);
 
@@ -154,7 +163,7 @@ const App: React.FC = () => {
                                     disabled={isProcessing}
                                 />
                                 {/* 화살표 아이콘 (시각적 효과) */}
-                                <div 
+                                <div
                                     style={{ position: 'absolute', right: '10px', top: '10px', cursor: 'pointer', color: '#7f8c8d' }}
                                     onClick={() => { if (!isProcessing) setIsGroupDropdownOpen(!isGroupDropdownOpen); }}
                                 >
@@ -205,15 +214,66 @@ const App: React.FC = () => {
                         </div>
 
                         <div style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>에이전트 ID (선택):</label>
-                            <input
-                                type="text"
-                                value={agentId}
-                                onChange={(e) => setAgentId(e.target.value)}
-                                placeholder="입력하지 않으면 모델 파라미터 제외"
-                                style={{ width: '100%', maxWidth: '300px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>에이전트 선택:</label>
+                            <select
+                                value={isAddingNewAgent ? 'NEW' : agentId}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === 'NEW') {
+                                        setIsAddingNewAgent(true);
+                                        setAgentId('');
+                                    } else {
+                                        setIsAddingNewAgent(false);
+                                        setAgentId(val);
+                                    }
+                                }}
+                                style={{ width: '100%', maxWidth: '300px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', marginBottom: '10px' }}
                                 disabled={isProcessing}
-                            />
+                            >
+                                <option value="">[선택 안 함 (V1 순수 OCR 호출)]</option>
+                                {agentsList.map(a => (
+                                    <option key={a.agentId} value={a.agentId}>{a.name} ({a.agentId})</option>
+                                ))}
+                                <option value="NEW">[직접 입력 / 새로 추가]</option>
+                            </select>
+
+                            {isAddingNewAgent && (
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="에이전트 이름 (예: 영수증)"
+                                        value={newAgentName}
+                                        onChange={(e) => setNewAgentName(e.target.value)}
+                                        style={{ width: '150px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="에이전트 ID (agt_...)"
+                                        value={agentId}
+                                        onChange={(e) => setAgentId(e.target.value)}
+                                        style={{ width: '200px', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }}
+                                    />
+                                    <button
+                                        onClick={async () => {
+                                            if (!newAgentName.trim() || !agentId.trim()) {
+                                                console.warn("이름과 ID를 모두 입력해주세요.");
+                                                return;
+                                            }
+                                            try {
+                                                await window.api.saveAgent({ name: newAgentName.trim(), agentId: agentId.trim() });
+                                                const updated = await window.api.getAgents();
+                                                setAgentsList(updated);
+                                                setIsAddingNewAgent(false);
+                                            } catch (err) {
+                                                console.error(err);
+                                            }
+                                        }}
+                                        style={{ padding: '8px 12px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                    >
+                                        저장
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ marginBottom: '15px' }}>
@@ -320,6 +380,7 @@ const App: React.FC = () => {
                                                         <thead>
                                                             <tr style={{ background: '#fafafa', borderBottom: '2px solid #ddd' }}>
                                                                 <th style={{ padding: '12px', textAlign: 'left' }}>상태</th>
+                                                                <th style={{ padding: '12px', textAlign: 'left' }}>API</th>
                                                                 <th style={{ padding: '12px', textAlign: 'left' }}>설명</th>
                                                                 <th style={{ padding: '12px', textAlign: 'left' }}>파일명</th>
                                                                 <th style={{ padding: '12px', textAlign: 'left' }}>크기</th>
@@ -333,6 +394,9 @@ const App: React.FC = () => {
                                                                 <tr key={index} style={{ borderBottom: '1px solid #eee', backgroundColor: '#fff' }}>
                                                                     <td style={{ padding: '12px', color: item.status === 'SUCCESS' ? '#27ae60' : '#e74c3c', fontWeight: 'bold' }}>
                                                                         {item.status}
+                                                                    </td>
+                                                                    <td style={{ padding: '12px', fontWeight: 'bold', color: item.apiType === 'V1' ? '#8e44ad' : '#2980b9' }}>
+                                                                        {item.apiType || 'V2'}
                                                                     </td>
                                                                     <td style={{ padding: '12px' }}>{item.description}</td>
                                                                     <td style={{ padding: '12px', color: '#3498db' }}>{item.fileName || 'N/A'}</td>

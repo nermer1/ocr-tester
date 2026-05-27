@@ -1,6 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 // 1. 모델 인터페이스 정의
+export interface IAgent extends Document {
+    name: string;
+    agentId: string;
+}
+
+
+// 1. 모델 인터페이스 정의
 export interface IHistory extends Document {
     groupName: string;
     description: string;
@@ -11,6 +18,7 @@ export interface IHistory extends Document {
     fileName: string;
     fileSize: string;
     status: string;
+    apiType: string;
     error?: string;
     rawResponse?: any;
 }
@@ -26,6 +34,7 @@ const HistorySchema: Schema = new Schema({
     fileName: { type: String, required: true },
     fileSize: { type: String, required: true },
     status: { type: String, required: true }, // SUCCESS or FAILED
+    apiType: { type: String, default: 'V2' }, // V1 or V2
     error: { type: String },
     rawResponse: { type: Schema.Types.Mixed } // 전체 원본 응답 저장
 }, {
@@ -35,6 +44,16 @@ const HistorySchema: Schema = new Schema({
 
 // 3. 모델 생성
 export const HistoryModel = mongoose.model<IHistory>('History', HistorySchema);
+
+const AgentSchema: Schema = new Schema({
+    name: { type: String, required: true, unique: true },
+    agentId: { type: String, required: true }
+}, {
+    timestamps: true,
+    collection: 'ocr_agents'
+});
+
+export const AgentModel = mongoose.model<IAgent>('Agent', AgentSchema);
 
 // 4. 데이터베이스 매니저 클래스
 export class DatabaseManager {
@@ -115,6 +134,38 @@ export class DatabaseManager {
         } catch (error) {
             console.error("[MongoDB] 그룹명 조회 실패:", error);
             return [];
+        }
+    }
+    /**
+     * 에이전트 목록 조회
+     */
+    public static async getAgents(): Promise<IAgent[]> {
+        if (!this.isConnected) return [];
+        try {
+            const agents = await AgentModel.find({}).sort({ createdAt: 1 }).lean();
+            return agents as any[];
+        } catch (error) {
+            console.error("[MongoDB] 에이전트 조회 실패:", error);
+            return [];
+        }
+    }
+
+    /**
+     * 에이전트 저장 또는 업데이트
+     */
+    public static async saveAgent(name: string, agentId: string): Promise<IAgent | null> {
+        if (!this.isConnected) return null;
+        try {
+            // 이름 기준으로 찾아서 업데이트하거나 새로 생성(upsert)
+            const agent = await AgentModel.findOneAndUpdate(
+                { name },
+                { agentId },
+                { new: true, upsert: true }
+            );
+            return agent;
+        } catch (error) {
+            console.error("[MongoDB] 에이전트 저장 실패:", error);
+            return null;
         }
     }
 }

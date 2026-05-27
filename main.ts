@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import FormData from 'form-data';
 import * as dotenvx from '@dotenvx/dotenvx';
 import { DatabaseManager } from './src/database/db';
+import { UpstageApiService } from './src/api/upstage';
 
 // .env 파일의 환경변수들을 process.env로 확실하게 불러옵니다. (dotenvx를 사용하여 암호화된 env 지원)
 dotenvx.config({ path: path.join(__dirname, '.env') });
@@ -15,7 +16,8 @@ console.log("[DEBUG] Loaded ENDPOINT:", process.env.OCR_API_ENDPOINT);
 const fetch = (...args: any[]) => (new Function('return import("node-fetch")')() as Promise<any>).then(({ default: fetch }) => fetch(...(args as [any, any])));
 
 const API_KEY: string = process.env.UPSTAGE_API_KEY || "";
-const API_ENDPOINT: string = process.env.OCR_API_ENDPOINT || "https://api.upstage.ai/v1/document-digitization";
+const API_V1_ENDPOINT: string = process.env.OCR_API_V1_ENDPOINT || "https://api.upstage.ai/v1/document-digitization";
+const API_V2_ENDPOINT: string = process.env.OCR_API_V2_ENDPOINT || "https://api.upstage.ai/v2";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -66,124 +68,19 @@ ipcMain.handle('perform-ocr', async (event, { filePath, description, groupName, 
     const requestTime = new Date(startTimeMs).toLocaleString();
 
     try {
-        // --- 1단계: 파일 업로드 API 호출 ---
-        const fileUploadUrl = `${API_ENDPOINT}/files`;
-        console.log(`[Upstage OCR] uploadFile START - url: ${fileUploadUrl}, file: ${filePath}`);
+        let ocrResult: { rawResponse: any, parsedData: any };
+        let apiType = 'V1';
 
-        const uploadFormData = new FormData();
-        uploadFormData.append("file", fs.createReadStream(filePath));
-        uploadFormData.append("purpose", "user_data");
-
-        const uploadRes = await fetch(fileUploadUrl, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${API_KEY}`,
-                ...uploadFormData.getHeaders()
-            },
-            body: uploadFormData as any
-        });
-
-        if (!uploadRes.ok) {
-            const errText = await uploadRes.text();
-            throw new Error(`Upstage 파일 업로드 실패: ${errText}`);
+        if (!agentId || agentId.trim() === '') {
+            ocrResult = await UpstageApiService.callV1(filePath, API_KEY, API_V1_ENDPOINT);
+            apiType = 'V1';
+        } else {
+            ocrResult = await UpstageApiService.callV2(filePath, agentId.trim(), API_KEY, API_V2_ENDPOINT);
+            apiType = 'V2';
         }
 
-        const uploadData: any = await uploadRes.json();
-        const fileId = uploadData.id;
-        console.log(`[Upstage OCR] uploadFile END - fileId: ${fileId}`);
-
-        // --- 2단계: Job 생성 (/responses) ---
-        const agentUrl = `${API_ENDPOINT}/responses`;
-        console.log(`[Upstage OCR] createJob request - url: ${agentUrl}, agentId(Dynamic): ${agentId || 'NONE'}`);
-
-        const requestBody: any = {
-            include: ["last"],
-            input: [
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "input_file",
-                            file_id: fileId
-                        }
-                    ]
-                }
-            ]
-        };
-
-        if (agentId && agentId.trim() !== '') {
-            requestBody.model = agentId.trim();
-        }
-
-        const agentRes = await fetch(agentUrl, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!agentRes.ok) {
-            const errText = await agentRes.text();
-            throw new Error(`Upstage Job 생성 실패: ${errText}`);
-        }
-
-        const agentData: any = await agentRes.json();
-        const jobId = agentData.id;
-        console.log(`[Upstage OCR] createJob END - jobId: ${jobId}`);
-
-        // --- 3단계: Job 폴링 ---
-        let jobResult: any = null;
-        const maxAttempts = 30;
-
-        for (let i = 0; i < maxAttempts; i++) {
-            const pollUrl = `${API_ENDPOINT}/responses/${jobId}?include[]=last`;
-            console.log(`[Upstage OCR] pollJob attempt ${i + 1}/${maxAttempts} - GET ${pollUrl}`);
-
-            const pollRes = await fetch(pollUrl, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${API_KEY}`
-                }
-            });
-
-            if (!pollRes.ok) {
-                const errText = await pollRes.text();
-                throw new Error(`Upstage Job 폴링 통신 실패: ${errText}`);
-            }
-
-            const pollData: any = await pollRes.json();
-            const status = pollData.status;
-            console.log(`[Upstage OCR] pollJob attempt ${i + 1}/${maxAttempts} - status: ${status}`);
-
-            if (status === "completed") {
-                jobResult = pollData;
-                break;
-            } else if (status === "failed") {
-                throw new Error(`Upstage Job 처리 실패: ${JSON.stringify(pollData)}`);
-            }
-
-            // 2초 대기
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        if (!jobResult) {
-            throw new Error("Upstage Job 폴링 타임아웃 (60초 초과)");
-        }
-
-        // --- 4단계: 결과 파싱 ---
-        const output = jobResult.output;
-        if (!output || output.length === 0) return null;
-
-        const lastOutput = output[0];
-        const content = lastOutput.content;
-        if (!content || content.length === 0) return null;
-
-        const text = content[0].text;
-        if (!text) return null;
-
-        const parsed = JSON.parse(text);
+        const jobResult = ocrResult.rawResponse;
+        const parsed = ocrResult.parsedData;
 
         // --- 5단계: 이력 저장 ---
         const endTimeMs = Date.now();
@@ -208,6 +105,7 @@ ipcMain.handle('perform-ocr', async (event, { filePath, description, groupName, 
             fileName,
             fileSize: fileSizeKb,
             status: "SUCCESS",
+            apiType,
             rawResponse: jobResult
         };
 
@@ -243,6 +141,7 @@ ipcMain.handle('perform-ocr', async (event, { filePath, description, groupName, 
             fileName,
             fileSize: fileSizeKb,
             status: "FAILED",
+            apiType: (!agentId || agentId.trim() === '') ? 'V1' : 'V2',
             error: error.message
         };
 
@@ -261,6 +160,15 @@ ipcMain.handle('get-history', async () => {
 // ★ 고유한 그룹명 목록 불러오기 핸들러
 ipcMain.handle('get-groups', async () => {
     return await DatabaseManager.getGroupNames();
+});
+
+// ★ 에이전트 불러오기 및 저장 핸들러
+ipcMain.handle('get-agents', async () => {
+    return await DatabaseManager.getAgents();
+});
+
+ipcMain.handle('save-agent', async (event, { name, agentId }) => {
+    return await DatabaseManager.saveAgent(name, agentId);
 });
 
 app.on('window-all-closed', () => {

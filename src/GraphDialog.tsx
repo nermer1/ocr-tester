@@ -28,7 +28,10 @@ const GraphDialog: React.FC<GraphDialogProps> = ({ groupName, items, onClose }) 
     // 항목 개수가 0개면 그래프를 그릴 수 없으므로 처리
     if (!items || items.length === 0) return null;
 
-    const data = items.map((itm, idx) => ({
+    // 부모 컴포넌트(renderer)에서 items가 최신순(내림차순)으로 넘어오므로,
+    // 1. 성공한 항목(SUCCESS)만 필터링합니다.
+    // 2. 그래프(왼쪽->오른쪽)는 과거부터 최신순(오름차순)으로 그려지도록 데이터를 뒤집어 줍니다.
+    const data = [...items].filter(itm => itm.status === 'SUCCESS').reverse().map((itm, idx) => ({
         name: `${idx + 1}회차`,
         time: parseFloat(itm.durationSec.replace('초', '')),
         fileName: itm.fileName || 'N/A',

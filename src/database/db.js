@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DatabaseManager = exports.HistoryModel = void 0;
+exports.DatabaseManager = exports.AgentModel = exports.HistoryModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 // 2. Mongoose 스키마 정의
 const HistorySchema = new mongoose_1.Schema({
@@ -55,6 +55,7 @@ const HistorySchema = new mongoose_1.Schema({
     fileName: { type: String, required: true },
     fileSize: { type: String, required: true },
     status: { type: String, required: true }, // SUCCESS or FAILED
+    apiType: { type: String, default: 'V2' }, // V1 or V2
     error: { type: String },
     rawResponse: { type: mongoose_1.Schema.Types.Mixed } // 전체 원본 응답 저장
 }, {
@@ -63,6 +64,14 @@ const HistorySchema = new mongoose_1.Schema({
 });
 // 3. 모델 생성
 exports.HistoryModel = mongoose_1.default.model('History', HistorySchema);
+const AgentSchema = new mongoose_1.Schema({
+    name: { type: String, required: true, unique: true },
+    agentId: { type: String, required: true }
+}, {
+    timestamps: true,
+    collection: 'ocr_agents'
+});
+exports.AgentModel = mongoose_1.default.model('Agent', AgentSchema);
 // 4. 데이터베이스 매니저 클래스
 class DatabaseManager {
     /**
@@ -144,6 +153,41 @@ class DatabaseManager {
             catch (error) {
                 console.error("[MongoDB] 그룹명 조회 실패:", error);
                 return [];
+            }
+        });
+    }
+    /**
+     * 에이전트 목록 조회
+     */
+    static getAgents() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.isConnected)
+                return [];
+            try {
+                const agents = yield exports.AgentModel.find({}).sort({ createdAt: 1 }).lean();
+                return agents;
+            }
+            catch (error) {
+                console.error("[MongoDB] 에이전트 조회 실패:", error);
+                return [];
+            }
+        });
+    }
+    /**
+     * 에이전트 저장 또는 업데이트
+     */
+    static saveAgent(name, agentId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.isConnected)
+                return null;
+            try {
+                // 이름 기준으로 찾아서 업데이트하거나 새로 생성(upsert)
+                const agent = yield exports.AgentModel.findOneAndUpdate({ name }, { agentId }, { new: true, upsert: true });
+                return agent;
+            }
+            catch (error) {
+                console.error("[MongoDB] 에이전트 저장 실패:", error);
+                return null;
             }
         });
     }
