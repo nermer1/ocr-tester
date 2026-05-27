@@ -57,9 +57,9 @@ const GraphDialog: React.FC<GraphDialogProps> = ({ groupName, items, onClose }) 
                 </div>
                 <div style={{ height: '350px', width: '100%' }}>
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={data}>
+                        <LineChart data={data} margin={{ top: 20, right: 40, left: 20, bottom: 30 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                            <XAxis dataKey="name" tick={{ fill: '#7f8c8d' }} />
+                            <XAxis dataKey="name" tick={{ fill: '#7f8c8d', fontSize: 12 }} interval={0} angle={-45} textAnchor="end" height={60} />
                             <YAxis tick={{ fill: '#7f8c8d' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Line type="monotone" dataKey="time" stroke="#3498db" strokeWidth={3} activeDot={{ r: 8, fill: '#e74c3c' }} />
