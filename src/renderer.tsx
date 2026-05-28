@@ -36,6 +36,10 @@ const App: React.FC = () => {
     const [isAddingNewAgent, setIsAddingNewAgent] = useState<boolean>(false);
     const [newAgentName, setNewAgentName] = useState<string>('');
 
+    // Drag & Drop 관련 상태
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+    const [selectedFileName, setSelectedFileName] = useState<string>('');
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const loadHistory = async () => {
@@ -278,7 +282,58 @@ const App: React.FC = () => {
 
                         <div style={{ marginBottom: '15px' }}>
                             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>이미지 파일 선택:</label>
-                            <input type="file" ref={fileInputRef} accept="image/*" style={{ marginBottom: '10px' }} disabled={isProcessing} />
+                            
+                            <div 
+                                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                                onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setIsDragging(false);
+                                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                                        if (fileInputRef.current) {
+                                            fileInputRef.current.files = e.dataTransfer.files;
+                                            setSelectedFileName(e.dataTransfer.files[0].name);
+                                        }
+                                    }
+                                }}
+                                onClick={() => {
+                                    if (!isProcessing && fileInputRef.current) {
+                                        fileInputRef.current.click();
+                                    }
+                                }}
+                                style={{
+                                    border: isDragging ? '2px dashed #3498db' : '2px dashed #ccc',
+                                    borderRadius: '8px',
+                                    padding: '30px',
+                                    textAlign: 'center',
+                                    backgroundColor: isDragging ? '#eaf4fd' : '#f9f9f9',
+                                    transition: 'all 0.2s',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    marginBottom: '10px'
+                                }}
+                            >
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    accept="image/*" 
+                                    style={{ display: 'none' }} 
+                                    disabled={isProcessing} 
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files.length > 0) {
+                                            setSelectedFileName(e.target.files[0].name);
+                                        } else {
+                                            setSelectedFileName('');
+                                        }
+                                    }}
+                                />
+                                <div style={{ color: '#7f8c8d', fontSize: '14px' }}>
+                                    {selectedFileName ? (
+                                        <span style={{ color: '#2c3e50', fontWeight: 'bold' }}>📄 선택된 파일: {selectedFileName}</span>
+                                    ) : (
+                                        <span>📁 여기로 이미지를 드래그하거나 클릭해서 선택하세요.</span>
+                                    )}
+                                </div>
+                            </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '10px' }}>
                                 <button
