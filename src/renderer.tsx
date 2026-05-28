@@ -28,6 +28,7 @@ const App: React.FC = () => {
     const [elapsedTime, setElapsedTime] = useState<number>(0);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [isGraphDialogOpen, setIsGraphDialogOpen] = useState<boolean>(false);
+    const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<string | null>(null);
     const [rawDialogData, setRawDialogData] = useState<any | null>(null);
     const [groupList, setGroupList] = useState<string[]>([]);
     const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState<boolean>(false);
@@ -472,10 +473,7 @@ const App: React.FC = () => {
                                                     title="그룹 이력 전체 삭제"
                                                     onClick={async (e) => {
                                                         e.stopPropagation();
-                                                        if (confirm(`'${g}' 그룹의 모든 이력을 영구적으로 삭제하시겠습니까?`)) {
-                                                            await window.api.deleteGroupHistory(g);
-                                                            loadHistory(); // 갱신
-                                                        }
+                                                        setDeleteConfirmGroup(g);
                                                     }}
                                                     style={{ fontSize: '1.2em', cursor: 'pointer', transition: 'transform 0.2s' }}
                                                     onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
@@ -548,6 +546,51 @@ const App: React.FC = () => {
                     }, {} as Record<string, boolean>))}
                     onClose={() => setIsGraphDialogOpen(false)}
                 />
+            )}
+
+            {/* 자체 제작 Confirm 모달창 (Electron focus bug 방지) */}
+            {deleteConfirmGroup && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', zIndex: 1100
+                }}>
+                    <div style={{
+                        backgroundColor: '#fff', padding: '30px', borderRadius: '12px',
+                        width: '400px', maxWidth: '90%', boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+                        textAlign: 'center'
+                    }}>
+                        <h3 style={{ marginTop: 0, color: '#e74c3c' }}>⚠️ 삭제 확인</h3>
+                        <p style={{ color: '#2c3e50', marginBottom: '30px' }}>
+                            <strong>'{deleteConfirmGroup}'</strong> 그룹의 모든 이력을<br/>영구적으로 삭제하시겠습니까?
+                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
+                            <button
+                                onClick={() => setDeleteConfirmGroup(null)}
+                                style={{
+                                    padding: '10px 20px', borderRadius: '6px', border: '1px solid #ccc',
+                                    background: '#f9f9f9', cursor: 'pointer', fontWeight: 'bold'
+                                }}
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    const g = deleteConfirmGroup;
+                                    setDeleteConfirmGroup(null);
+                                    await window.api.deleteGroupHistory(g);
+                                    loadHistory();
+                                }}
+                                style={{
+                                    padding: '10px 20px', borderRadius: '6px', border: 'none',
+                                    background: '#e74c3c', color: '#fff', cursor: 'pointer', fontWeight: 'bold'
+                                }}
+                            >
+                                삭제
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Raw 데이터 다이얼로그 */}
