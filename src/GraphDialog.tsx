@@ -25,13 +25,20 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const GraphDialog: React.FC<GraphDialogProps> = ({ groupName, items, onClose }) => {
+    const [filterType, setFilterType] = React.useState<string>('ALL');
+
     // 항목 개수가 0개면 그래프를 그릴 수 없으므로 처리
     if (!items || items.length === 0) return null;
 
     // 부모 컴포넌트(renderer)에서 items가 최신순(내림차순)으로 넘어오므로,
     // 1. 성공한 항목(SUCCESS)만 필터링합니다.
-    // 2. 그래프(왼쪽->오른쪽)는 과거부터 최신순(오름차순)으로 그려지도록 데이터를 뒤집어 줍니다.
-    const data = [...items].filter(itm => itm.status === 'SUCCESS').reverse().map((itm, idx) => ({
+    // 2. 선택된 API 타입에 맞춰 필터링합니다.
+    // 3. 그래프(왼쪽->오른쪽)는 과거부터 최신순(오름차순)으로 그려지도록 데이터를 뒤집어 줍니다.
+    const data = [...items]
+        .filter(itm => itm.status === 'SUCCESS')
+        .filter(itm => filterType === 'ALL' || (itm.apiType || 'V2') === filterType)
+        .reverse()
+        .map((itm, idx) => ({
         name: `${idx + 1}회차`,
         time: parseFloat(itm.durationSec.replace('초', '')),
         fileName: itm.fileName || 'N/A',
@@ -52,7 +59,18 @@ const GraphDialog: React.FC<GraphDialogProps> = ({ groupName, items, onClose }) 
                 width: '700px', maxWidth: '90%', boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #ecf0f1', paddingBottom: '10px' }}>
-                    <h3 style={{ margin: 0, color: '#2c3e50' }}>📊 {groupName} - 소요 시간 추이</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <h3 style={{ margin: 0, color: '#2c3e50' }}>📊 {groupName} - 소요 시간 추이</h3>
+                        <select 
+                            value={filterType} 
+                            onChange={e => setFilterType(e.target.value)}
+                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                        >
+                            <option value="ALL">전체 보기</option>
+                            <option value="V1">V1 (순수 OCR)</option>
+                            <option value="V2">V2 (에이전트)</option>
+                        </select>
+                    </div>
                     <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: '1.5em', cursor: 'pointer', color: '#7f8c8d' }}>✖</button>
                 </div>
                 <div style={{ height: '350px', width: '100%' }}>
