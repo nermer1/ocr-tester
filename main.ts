@@ -171,6 +171,11 @@ ipcMain.handle('save-agent', async (event, { name, agentId }) => {
     return await DatabaseManager.saveAgent(name, agentId);
 });
 
+// ★ 특정 그룹 이력 삭제 핸들러
+ipcMain.handle('delete-group-history', async (event, groupName: string) => {
+    return await DatabaseManager.deleteHistoryByGroup(groupName);
+});
+
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });

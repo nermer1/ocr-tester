@@ -191,6 +191,23 @@ class DatabaseManager {
             }
         });
     }
+    /**
+     * 특정 그룹의 모든 이력을 삭제
+     */
+    static deleteHistoryByGroup(groupName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!this.isConnected)
+                return false;
+            try {
+                yield exports.HistoryModel.deleteMany({ groupName });
+                return true;
+            }
+            catch (error) {
+                console.error("[MongoDB] 이력 삭제 실패:", error);
+                return false;
+            }
+        });
+    }
 }
 exports.DatabaseManager = DatabaseManager;
 DatabaseManager.isConnected = false;

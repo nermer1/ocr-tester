@@ -24,7 +24,6 @@ class ErrorBoundary extends Component<any, any> {
 }
 
 interface GraphDialogProps {
-    groupName: string;
     allHistory: any[];
     groupList: string[];
     onClose: () => void;
@@ -38,8 +37,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             <div style={{ backgroundColor: '#fff', padding: '15px', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                 <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '1.1em', color: '#2c3e50', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>{label}</p>
                 {payload.map((p: any, idx: number) => {
-                    const isBase = p.dataKey === 'baseTime';
-                    const data = isBase ? p.payload.baseData : p.payload[`${p.name}_data`];
+                    const data = p.payload[`${p.name}_data`] || p.payload[`comp_${idx}_data`];
                     
                     if (!data) return null;
                     return (
@@ -59,20 +57,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
-const GraphDialogInner: React.FC<GraphDialogProps> = ({ groupName, allHistory, groupList, onClose }) => {
+const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, onClose }) => {
     const [filterType, setFilterType] = useState<string>('ALL');
-    const [compareGroups, setCompareGroups] = useState<Set<string>>(new Set());
+    
+    // 초기 렌더링 시 그룹 목록 중 첫 번째 그룹을 기본 선택 상태로 만듦
+    const [compareGroups, setCompareGroups] = useState<Set<string>>(() => {
+        const initial = new Set<string>();
+        if (groupList.length > 0) initial.add(groupList[0]);
+        return initial;
+    });
 
-    // 기준 그룹 필터링
-    const baseItems = allHistory
-        .filter(itm => (itm.groupName || '미지정 그룹') === groupName)
-        .filter(itm => itm.status === 'SUCCESS')
-        .filter(itm => filterType === 'ALL' || (itm.apiType || 'V2') === filterType)
-        .reverse();
-
-    // 비교 그룹 데이터 준비
+    // 선택된 그룹들의 데이터 준비 및 최대 반복 횟수 계산
     const compareItemsMap: Record<string, any[]> = {};
-    let maxIterations = baseItems.length;
+    let maxIterations = 0;
 
     Array.from(compareGroups).forEach(g => {
         const items = allHistory
@@ -92,14 +89,9 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ groupName, allHistory, g
     for (let i = 0; i < maxIterations; i++) {
         const row: any = { name: `${i + 1}회차` };
         
-        const base = baseItems[i];
-        row['baseTime'] = base ? parseFloat(String(base.durationSec || '0').replace('초', '')) : null;
-        row['baseData'] = base || null;
-
-        Array.from(compareGroups).forEach(g => {
+        Array.from(compareGroups).forEach((g, idx) => {
             const comp = compareItemsMap[g][i];
-            // recharts dataKey가 특수문자를 인식 못하는 문제 방지를 위해 index 기반 key 사용
-            const safeKey = `comp_${Array.from(compareGroups).indexOf(g)}`;
+            const safeKey = `comp_${idx}`;
             row[`${safeKey}_time`] = comp ? parseFloat(String(comp.durationSec || '0').replace('초', '')) : null;
             row[`${safeKey}_data`] = comp || null;
         });
@@ -115,7 +107,7 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ groupName, allHistory, g
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <h3 style={{ margin: 0, color: '#2c3e50' }}>📊 {groupName} 다중 비교</h3>
+                    <h3 style={{ margin: 0, color: '#2c3e50' }}>📊 전체 그룹 비교 뷰어</h3>
                     <select 
                         value={filterType} 
                         onChange={e => setFilterType(e.target.value)}
@@ -131,10 +123,10 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ groupName, allHistory, g
 
             <div style={{ padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '20px', border: '1px solid #eee' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '0.9em', color: '#555', display: 'block', marginBottom: '8px' }}>
-                    ✅ 비교할 그룹 선택 (다중 선택 가능):
+                    ✅ 보고 싶은 그룹을 선택하세요 (다중 선택 가능):
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
-                    {groupList.filter(g => g !== groupName).map(g => (
+                    {groupList.map(g => (
                         <label key={g} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9em', color: '#2c3e50' }}>
                             <input 
                                 type="checkbox" 
@@ -150,8 +142,8 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ groupName, allHistory, g
                             {g}
                         </label>
                     ))}
-                    {groupList.length <= 1 && (
-                        <span style={{ color: '#95a5a6', fontSize: '0.9em' }}>다른 그룹이 존재하지 않습니다.</span>
+                    {groupList.length === 0 && (
+                        <span style={{ color: '#95a5a6', fontSize: '0.9em' }}>생성된 그룹이 존재하지 않습니다.</span>
                     )}
                 </div>
             </div>
@@ -165,8 +157,6 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ groupName, allHistory, g
                             <YAxis tick={{ fill: '#7f8c8d' }} />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend verticalAlign="top" height={36} />
-                            
-                            <Line name={groupName} type="monotone" dataKey="baseTime" stroke="#3498db" strokeWidth={3} activeDot={{ r: 8, fill: '#3498db' }} connectNulls={true} />
                             
                             {Array.from(compareGroups).map((g, idx) => {
                                 const color = COLORS[idx % COLORS.length];

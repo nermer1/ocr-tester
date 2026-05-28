@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('api', {
     getHistory: () => ipcRenderer.invoke('get-history'),
     getGroups: () => ipcRenderer.invoke('get-groups'),
     getAgents: () => ipcRenderer.invoke('get-agents'),
-    saveAgent: (data: { name: string, agentId: string }) => ipcRenderer.invoke('save-agent', data)
+    saveAgent: (data: { name: string, agentId: string }) => ipcRenderer.invoke('save-agent', data),
+    deleteGroupHistory: (groupName: string) => ipcRenderer.invoke('delete-group-history', groupName)
 });

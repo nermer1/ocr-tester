@@ -10,6 +10,7 @@ declare global {
             getGroups: () => Promise<string[]>;
             getAgents: () => Promise<any[]>;
             saveAgent: (data: { name: string, agentId: string }) => Promise<any>;
+            deleteGroupHistory: (groupName: string) => Promise<boolean>;
         };
     }
 }
@@ -26,7 +27,7 @@ const App: React.FC = () => {
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
     const [elapsedTime, setElapsedTime] = useState<number>(0);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-    const [dialogGroup, setDialogGroup] = useState<string | null>(null);
+    const [isGraphDialogOpen, setIsGraphDialogOpen] = useState<boolean>(false);
     const [rawDialogData, setRawDialogData] = useState<any | null>(null);
     const [groupList, setGroupList] = useState<string[]>([]);
     const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState<boolean>(false);
@@ -426,7 +427,25 @@ const App: React.FC = () => {
 
                 {currentMenu === 'HISTORY' && (
                     <div>
-                        <h2>이전 호출 리스트</h2>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2>이전 호출 리스트</h2>
+                            <button
+                                onClick={() => setIsGraphDialogOpen(true)}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: '#9b59b6',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold',
+                                    fontSize: '1em',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                }}
+                            >
+                                📊 전체 그룹 비교 (그래프 뷰어 열기)
+                            </button>
+                        </div>
                         {history.length === 0 ? (
                             <p style={{ color: '#666' }}>아직 저장된 이력이 없습니다.</p>
                         ) : (
@@ -450,16 +469,19 @@ const App: React.FC = () => {
                                             <span>📁 {g} <span style={{ color: '#777', fontSize: '0.9em' }}>({(items as any[]).length}건)</span></span>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                                 <span
-                                                    title="그래프 보기"
-                                                    onClick={(e) => {
+                                                    title="그룹 이력 전체 삭제"
+                                                    onClick={async (e) => {
                                                         e.stopPropagation();
-                                                        setDialogGroup(g);
+                                                        if (confirm(`'${g}' 그룹의 모든 이력을 영구적으로 삭제하시겠습니까?`)) {
+                                                            await window.api.deleteGroupHistory(g);
+                                                            loadHistory(); // 갱신
+                                                        }
                                                     }}
                                                     style={{ fontSize: '1.2em', cursor: 'pointer', transition: 'transform 0.2s' }}
                                                     onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
                                                     onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                                 >
-                                                    📊
+                                                    🗑️
                                                 </span>
                                                 <span style={{ color: '#555' }}>{expandedGroups.has(g) ? '▲' : '▼'}</span>
                                             </div>
@@ -517,12 +539,14 @@ const App: React.FC = () => {
             </div>
 
             {/* 다이얼로그 랜더링 */}
-            {dialogGroup && (
+            {isGraphDialogOpen && (
                 <GraphDialog
-                    groupName={dialogGroup}
                     allHistory={history}
-                    groupList={Array.from(new Set(history.map(item => item.groupName || '미지정 그룹')))}
-                    onClose={() => setDialogGroup(null)}
+                    groupList={Object.keys(history.reduce((acc, item) => {
+                        acc[item.groupName || '미지정 그룹'] = true;
+                        return acc;
+                    }, {} as Record<string, boolean>))}
+                    onClose={() => setIsGraphDialogOpen(false)}
                 />
             )}
 
