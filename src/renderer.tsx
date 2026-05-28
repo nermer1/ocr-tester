@@ -38,7 +38,7 @@ const App: React.FC = () => {
 
     // Drag & Drop 관련 상태
     const [isDragging, setIsDragging] = useState<boolean>(false);
-    const [selectedFileName, setSelectedFileName] = useState<string>('');
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,28 +77,60 @@ const App: React.FC = () => {
     }, [isProcessing]);
 
     const handleOcrClick = async () => {
-        const file = fileInputRef.current?.files?.[0];
+        const files = selectedFiles;
 
-        if (!file) {
+        if (files.length === 0) {
             setResult("❌ 파일을 놓고 오셨네요. 이미지를 선택해주세요.");
             return;
         }
-
-        const filePath = (file as any).path;
 
         if (!description.trim()) {
             setResult("❌ 요청 항목에 대한 설명을 입력해주세요!");
             return;
         }
 
-        setResult("분석 중... 서버 다녀오는 중");
+        setResult(`🚀 총 ${files.length}개의 파일 분석을 시작합니다...\n\n`);
         setIsProcessing(true);
+        setElapsedTime(0);
+
+        let logs = `🚀 총 ${files.length}개의 파일 분석을 시작합니다...\n\n`;
+        const chunkSize = 5;
+        let successCount = 0;
+        let failCount = 0;
 
         try {
-            const response = await window.api.requestOCR({ filePath, description, groupName, agentId });
-            setResult(JSON.stringify(response, null, 2));
+            for (let i = 0; i < files.length; i += chunkSize) {
+                const chunk = files.slice(i, i + chunkSize);
+                
+                // 현재 청크 진행 상황 로깅
+                const chunkLogs = chunk.map(f => `⏳ [대기 중] ${f.name}`).join('\n');
+                setResult(logs + `\n▶️ ${i + 1} ~ ${Math.min(i + chunkSize, files.length)}번째 파일 처리 중...\n` + chunkLogs);
+
+                // Promise.allSettled를 이용해 청크 단위 병렬 처리
+                const chunkPromises = chunk.map(async (file) => {
+                    const filePath = (file as any).path;
+                    const startTime = Date.now();
+                    try {
+                        const response = await window.api.requestOCR({ filePath, description, groupName, agentId });
+                        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                        successCount++;
+                        return `✅ [성공] ${file.name} - ${duration}초 소요`;
+                    } catch (error: any) {
+                        failCount++;
+                        return `❌ [실패] ${file.name} - 에러: ${error.message}`;
+                    }
+                });
+
+                const chunkResults = await Promise.all(chunkPromises);
+                
+                logs += chunkResults.join('\n') + '\n';
+                setResult(logs);
+            }
+            
+            logs += `\n🎉 모든 분석이 완료되었습니다!\n✅ 성공: ${successCount}건, ❌ 실패: ${failCount}건`;
+            setResult(logs);
         } catch (error: any) {
-            setResult("에러 났어 ㅠㅠ\n" + error.message);
+            setResult(logs + "\n\n치명적인 에러 발생 ㅠㅠ\n" + error.message);
         } finally {
             setIsProcessing(false);
         }
@@ -290,10 +322,8 @@ const App: React.FC = () => {
                                     e.preventDefault();
                                     setIsDragging(false);
                                     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                                        if (fileInputRef.current) {
-                                            fileInputRef.current.files = e.dataTransfer.files;
-                                            setSelectedFileName(e.dataTransfer.files[0].name);
-                                        }
+                                        const newFiles = Array.from(e.dataTransfer.files);
+                                        setSelectedFiles(newFiles);
                                     }
                                 }}
                                 onClick={() => {
@@ -314,23 +344,29 @@ const App: React.FC = () => {
                             >
                                 <input 
                                     type="file" 
+                                    multiple
                                     ref={fileInputRef} 
                                     accept="image/*" 
                                     style={{ display: 'none' }} 
                                     disabled={isProcessing} 
                                     onChange={(e) => {
                                         if (e.target.files && e.target.files.length > 0) {
-                                            setSelectedFileName(e.target.files[0].name);
+                                            setSelectedFiles(Array.from(e.target.files));
                                         } else {
-                                            setSelectedFileName('');
+                                            setSelectedFiles([]);
                                         }
                                     }}
                                 />
                                 <div style={{ color: '#7f8c8d', fontSize: '14px' }}>
-                                    {selectedFileName ? (
-                                        <span style={{ color: '#2c3e50', fontWeight: 'bold' }}>📄 선택된 파일: {selectedFileName}</span>
+                                    {selectedFiles.length > 0 ? (
+                                        <div style={{ color: '#2c3e50', fontWeight: 'bold' }}>
+                                            📄 선택된 파일: {selectedFiles.length}개
+                                            <div style={{ fontSize: '0.9em', color: '#7f8c8d', marginTop: '5px' }}>
+                                                ({selectedFiles[0].name} {selectedFiles.length > 1 ? `외 ${selectedFiles.length - 1}건` : ''})
+                                            </div>
+                                        </div>
                                     ) : (
-                                        <span>📁 여기로 이미지를 드래그하거나 클릭해서 선택하세요.</span>
+                                        <span>📁 여러 장의 이미지를 드래그하거나 클릭해서 선택하세요.</span>
                                     )}
                                 </div>
                             </div>
