@@ -484,7 +484,8 @@ const App: React.FC = () => {
             {dialogGroup && (
                 <GraphDialog
                     groupName={dialogGroup}
-                    items={history.filter(item => (item.groupName || '미지정 그룹') === dialogGroup)}
+                    allHistory={history}
+                    groupList={Array.from(new Set(history.map(item => item.groupName || '미지정 그룹')))}
                     onClose={() => setDialogGroup(null)}
                 />
             )}
