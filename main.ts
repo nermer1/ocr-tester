@@ -6,6 +6,18 @@ import * as dotenvx from '@dotenvx/dotenvx';
 import { DatabaseManager } from './src/database/db';
 import { UpstageApiService } from './src/api/upstage';
 
+// 개발 환경에서 renderer.js가 변경되면(즉 esbuild가 다시 빌드하면) 창을 새로고침합니다.
+try {
+    const rendererPath = path.join(__dirname, 'renderer.js');
+    fs.watch(rendererPath, () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.reloadIgnoringCache();
+        }
+    });
+} catch (e) {
+    console.error("Failed to setup watch:", e);
+}
+
 // .env 파일의 환경변수들을 process.env로 확실하게 불러옵니다. (dotenvx를 사용하여 암호화된 env 지원)
 dotenvx.config({ path: path.join(__dirname, '.env') });
 console.log("[DEBUG] Loaded API_KEY:", process.env.UPSTAGE_API_KEY ? "EXISTS" : "MISSING");

@@ -1,4 +1,4 @@
-import React, { useState, Component } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 class ErrorBoundary extends Component<any, any> {
@@ -31,23 +31,29 @@ interface GraphDialogProps {
 
 const COLORS = ['#2ecc71', '#e74c3c', '#9b59b6', '#f1c40f', '#e67e22', '#1abc9c', '#34495e'];
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, setHoveredData }: any) => {
+    useEffect(() => {
+        if (active && payload && payload.length) {
+            setHoveredData((prev: any) => {
+                // 불필요한 렌더링 방지 (이미 같은 라벨이면 업데이트 안 함)
+                if (prev && prev.label === label) return prev;
+                return { label, payload };
+            });
+        }
+    }, [active, label, setHoveredData, payload]);
+
     if (active && payload && payload.length) {
         return (
-            <div style={{ backgroundColor: '#fff', padding: '15px', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontSize: '1.1em', color: '#2c3e50', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>{label}</p>
+            <div style={{ backgroundColor: '#fff', padding: '10px 15px', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', fontSize: '1.0em', color: '#2c3e50', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>{label}</p>
                 {payload.map((p: any, idx: number) => {
                     const data = p.payload[`${p.name}_data`] || p.payload[`comp_${idx}_data`];
-                    
                     if (!data) return null;
                     return (
-                        <div key={idx} style={{ marginBottom: idx < payload.length - 1 ? '15px' : '0' }}>
-                            <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: p.color }}>{p.name}</p>
-                            <p style={{ margin: '2px 0', color: p.color, fontWeight: 'bold' }}>⏳ 소요 시간: {p.value}초</p>
-                            <p style={{ margin: '2px 0', fontSize: '0.9em', color: '#34495e' }}><strong>상태:</strong> {data.status}</p>
-                            <p style={{ margin: '2px 0', fontSize: '0.9em', color: '#34495e' }}><strong>요청 시간:</strong> {data.requestTime}</p>
-                            <p style={{ margin: '2px 0', fontSize: '0.9em', color: '#34495e' }}><strong>파일명:</strong> {data.fileName} ({data.fileSize})</p>
-                            <p style={{ margin: '2px 0', fontSize: '0.9em', color: '#34495e' }}><strong>설명:</strong> {data.description}</p>
+                        <div key={idx} style={{ marginBottom: '4px', fontSize: '0.9em' }}>
+                            <span style={{ color: p.color, fontWeight: 'bold', marginRight: '8px' }}>{p.name}</span>
+                            <span>⏳ {p.value}초</span>
+                            <span style={{ marginLeft: '8px', fontSize: '0.85em', color: '#7f8c8d' }}>({data.status})</span>
                         </div>
                     );
                 })}
@@ -59,7 +65,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, onClose }) => {
     const [filterType, setFilterType] = useState<string>('ALL');
-    
+    const [hoveredData, setHoveredData] = useState<{ label: string, payload: any[] } | null>(null);
+
     // 초기 렌더링 시 그룹 목록 중 첫 번째 그룹을 기본 선택 상태로 만듦
     const [compareGroups, setCompareGroups] = useState<Set<string>>(() => {
         const initial = new Set<string>();
@@ -77,7 +84,7 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
             .filter(itm => (itm.groupName || '미지정 그룹') === g)
             .filter(itm => itm.status === 'SUCCESS')
             .filter(itm => filterType === 'ALL' || (itm.apiType || 'V2') === filterType);
-        
+
         // 2. 요청 시간(requestTime) 기준으로 오름차순 정렬 (먼저 요청된 것이 먼저 오도록)
         // (requestTime이 같은 문자열 형태이더라도 Date 파싱 후 비교, 또는 순차 생성된 문자열이므로 로케일 비교 가능)
         const sortedItems = [...filtered].sort((a, b) => {
@@ -105,10 +112,10 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
         // 정규식으로 파일명과 차수를 분리 (예: "test.png (1)")
         const matchA = a.match(/^(.*) \((\d+)\)$/);
         const matchB = b.match(/^(.*) \((\d+)\)$/);
-        
+
         const nameA = matchA ? matchA[1] : a;
         const numA = matchA ? parseInt(matchA[2], 10) : 0;
-        
+
         const nameB = matchB ? matchB[1] : b;
         const numB = matchB ? parseInt(matchB[2], 10) : 0;
 
@@ -120,7 +127,7 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
     // 5. 그래프 병합 데이터 생성
     const data = sortedUniqueKeys.map(uniqueKey => {
         const row: any = { name: uniqueKey };
-        
+
         Array.from(compareGroups).forEach((g, idx) => {
             // 그룹 데이터 중 해당 식별자를 가진 항목 찾기
             const comp = compareItemsMap[g].find(itm => itm._uniqueKey === uniqueKey);
@@ -141,8 +148,8 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <h3 style={{ margin: 0, color: '#2c3e50' }}>📊 전체 그룹 비교 뷰어</h3>
-                    <select 
-                        value={filterType} 
+                    <select
+                        value={filterType}
                         onChange={e => setFilterType(e.target.value)}
                         style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid #ccc' }}
                     >
@@ -161,15 +168,15 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
                     {groupList.map(g => (
                         <label key={g} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9em', color: '#2c3e50' }}>
-                            <input 
-                                type="checkbox" 
-                                checked={compareGroups.has(g)} 
+                            <input
+                                type="checkbox"
+                                checked={compareGroups.has(g)}
                                 onChange={(e) => {
                                     const newSet = new Set(compareGroups);
                                     if (e.target.checked) newSet.add(g);
                                     else newSet.delete(g);
                                     setCompareGroups(newSet);
-                                }} 
+                                }}
                                 style={{ cursor: 'pointer' }}
                             />
                             {g}
@@ -181,29 +188,37 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
                 </div>
             </div>
 
-            <div style={{ height: '400px', width: '100%' }}>
+            <div style={{ height: '350px', width: '100%', marginBottom: '20px' }}>
                 {data.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={data} margin={{ top: 20, right: 40, left: 20, bottom: 30 }}>
+                        <LineChart
+                            data={data}
+                            margin={{ top: 20, right: 40, left: 20, bottom: 30 }}
+                            onMouseMove={(state: any) => {
+                                if (state && state.activePayload && state.activePayload.length > 0) {
+                                    setHoveredData({ label: state.activeLabel, payload: state.activePayload });
+                                }
+                            }}
+                        >
                             <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                             <XAxis dataKey="name" tick={{ fill: '#7f8c8d', fontSize: 12 }} interval={0} angle={-45} textAnchor="end" height={60} />
                             <YAxis tick={{ fill: '#7f8c8d' }} />
-                            <Tooltip content={<CustomTooltip />} />
+                            <Tooltip content={<CustomTooltip setHoveredData={setHoveredData} />} />
                             <Legend verticalAlign="top" height={36} />
-                            
+
                             {Array.from(compareGroups).map((g, idx) => {
                                 const color = COLORS[idx % COLORS.length];
                                 const safeKey = `comp_${idx}`;
                                 return (
-                                    <Line 
-                                        key={safeKey} 
-                                        name={g} 
-                                        type="monotone" 
-                                        dataKey={`${safeKey}_time`} 
-                                        stroke={color} 
-                                        strokeWidth={2} 
-                                        activeDot={{ r: 6, fill: color }} 
-                                        connectNulls={true} 
+                                    <Line
+                                        key={safeKey}
+                                        name={g}
+                                        type="monotone"
+                                        dataKey={`${safeKey}_time`}
+                                        stroke={color}
+                                        strokeWidth={2}
+                                        activeDot={{ r: 6, fill: color }}
+                                        connectNulls={true}
                                     />
                                 );
                             })}
@@ -212,6 +227,104 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
                 ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#95a5a6' }}>
                         선택된 조건에 해당하는 성공 데이터가 없습니다.
+                    </div>
+                )}
+            </div>
+
+            {/* 고정형 상세 정보 패널 (Detail Panel) */}
+            <div style={{
+                height: '250px', overflowY: 'auto', backgroundColor: '#f8f9fa',
+                border: '1px solid #ddd', borderRadius: '8px', padding: '15px'
+            }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#2c3e50', borderBottom: '2px solid #ecf0f1', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>🔍 상세 정보 패널 {hoveredData ? `- [ ${hoveredData.label} ]` : ''}</span>
+                    {hoveredData && (
+                        <button
+                            onClick={() => setHoveredData(null)}
+                            style={{
+                                padding: '4px 12px', fontSize: '0.85em', backgroundColor: '#95a5a6',
+                                color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7f8c8d'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#95a5a6'}
+                        >
+                            초기화
+                        </button>
+                    )}
+                </h4>
+
+                {!hoveredData ? (
+                    <div style={{ height: '100%' }}>
+                        <div style={{ marginBottom: '15px', color: '#7f8c8d', fontSize: '0.95em', textAlign: 'center', backgroundColor: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #eee' }}>
+                            👆 차트의 포인트에 마우스를 올리면 해당 파일의 상세 결과를 볼 수 있습니다.<br />
+                            아래는 현재 선택된 그룹들의 <strong>전체 종합 분석 데이터</strong>입니다.
+                        </div>
+                        {data.length === 0 ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100px', color: '#95a5a6' }}>
+                                표시할 데이터가 없습니다.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
+                                {Array.from(compareGroups).map((g, idx) => {
+                                    const key = `comp_${idx}_time`;
+                                    const times = data.map(d => d[key]).filter(t => t !== null && t !== undefined) as number[];
+                                    if (times.length === 0) return null;
+
+                                    const min = Math.min(...times);
+                                    const max = Math.max(...times);
+                                    const avg = times.reduce((a, b) => a + b, 0) / times.length;
+                                    const color = COLORS[idx % COLORS.length];
+
+                                    return (
+                                        <div key={idx} style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '8px', borderLeft: `4px solid ${color}`, boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+                                            <h5 style={{ margin: '0 0 10px 0', color: color, fontSize: '1.05em' }}>{g}</h5>
+                                            <p style={{ margin: '4px 0', fontSize: '0.9em', color: '#2c3e50' }}><strong>✅ 성공 건수:</strong> {times.length}건</p>
+                                            <p style={{ margin: '4px 0', fontSize: '0.9em', color: '#2c3e50' }}><strong>⚡ 평균 소요 시간:</strong> <span style={{ color: '#e74c3c', fontWeight: 'bold' }}>{avg.toFixed(2)}초</span></p>
+                                            <p style={{ margin: '4px 0', fontSize: '0.9em', color: '#2c3e50' }}><strong>⏱ 최소 / 최대:</strong> {min.toFixed(2)}초 / {max.toFixed(2)}초</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div>
+                        {/* 1. 공통 정보 블록 (맨 위로 이동) */}
+                        {(() => {
+                            const firstValid = hoveredData.payload.find((p: any) => p.payload[`${p.name}_data`] || p.payload[`comp_${hoveredData.payload.indexOf(p)}_data`]);
+                            const sharedData = firstValid ? (firstValid.payload[`${firstValid.name}_data`] || firstValid.payload[`comp_${hoveredData.payload.indexOf(firstValid)}_data`]) : null;
+
+                            if (!sharedData) return null;
+                            return (
+                                <div style={{ marginBottom: '15px', backgroundColor: '#fff', padding: '12px', borderRadius: '6px', border: '1px solid #eee' }}>
+                                    <p style={{ margin: '4px 0', fontSize: '0.95em' }}><strong>📄 파일명:</strong> {sharedData.fileName} <span style={{ color: '#7f8c8d' }}>({sharedData.fileSize})</span></p>
+                                </div>
+                            );
+                        })()}
+
+                        {/* 2. 해당 데이터 기준 전체 비교 분석 요약 (파일명 밑으로 이동) */}
+                        {(() => {
+                            const times = hoveredData.payload.map((p: any) => parseFloat(p.value)).filter(v => !isNaN(v));
+                            if (times.length > 0) {
+                                const min = Math.min(...times);
+                                const max = Math.max(...times);
+                                const avg = times.reduce((a, b) => a + b, 0) / times.length;
+
+                                return (
+                                    <div style={{ backgroundColor: '#e8f4f8', padding: '15px', borderRadius: '8px', border: '1px solid #bce8f1' }}>
+                                        <h5 style={{ margin: '0 0 10px 0', color: '#31708f', fontSize: '1.05em' }}>📊 해당 파일 그룹 간 처리 속도 분석</h5>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', fontSize: '0.95em', color: '#2c3e50' }}>
+                                            <span><strong>⚡ 평균 소요 시간:</strong> <span style={{ color: '#e74c3c', fontWeight: 'bold' }}>{avg.toFixed(2)}초</span></span>
+                                            <span><strong>🔻 가장 빠른 그룹(최소):</strong> {min.toFixed(2)}초</span>
+                                            <span><strong>🔺 가장 느린 그룹(최대):</strong> {max.toFixed(2)}초</span>
+                                            <span><strong>↔ 속도 편차:</strong> {(max - min).toFixed(2)}초</span>
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
                     </div>
                 )}
             </div>

@@ -103,7 +103,7 @@ const App: React.FC = () => {
         try {
             for (let i = 0; i < files.length; i += chunkSize) {
                 const chunk = files.slice(i, i + chunkSize);
-                
+
                 // 현재 청크 진행 상황 로깅
                 const chunkLogs = chunk.map(f => `⏳ [대기 중] ${f.name}`).join('\n');
                 setResult(logs + `\n▶️ ${i + 1} ~ ${Math.min(i + chunkSize, files.length)}번째 파일 처리 중...\n` + chunkLogs);
@@ -124,11 +124,11 @@ const App: React.FC = () => {
                 });
 
                 const chunkResults = await Promise.all(chunkPromises);
-                
+
                 logs += chunkResults.join('\n') + '\n';
                 setResult(logs);
             }
-            
+
             logs += `\n🎉 모든 분석이 완료되었습니다!\n✅ 성공: ${successCount}건, ❌ 실패: ${failCount}건`;
             setResult(logs);
         } catch (error: any) {
@@ -316,8 +316,8 @@ const App: React.FC = () => {
 
                         <div style={{ marginBottom: '15px' }}>
                             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>이미지 파일 선택:</label>
-                            
-                            <div 
+
+                            <div
                                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                 onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
                                 onDrop={(e) => {
@@ -344,13 +344,13 @@ const App: React.FC = () => {
                                     marginBottom: '10px'
                                 }}
                             >
-                                <input 
-                                    type="file" 
+                                <input
+                                    type="file"
                                     multiple
-                                    ref={fileInputRef} 
-                                    accept="image/*" 
-                                    style={{ display: 'none' }} 
-                                    disabled={isProcessing} 
+                                    ref={fileInputRef}
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={isProcessing}
                                     onChange={(e) => {
                                         if (e.target.files && e.target.files.length > 0) {
                                             setSelectedFiles(Array.from(e.target.files));
@@ -434,8 +434,7 @@ const App: React.FC = () => {
                                 onClick={() => setIsGraphDialogOpen(true)}
                                 style={{
                                     padding: '10px 20px',
-                                    background: '#9b59b6',
-                                    color: 'white',
+                                    color: 'black',
                                     border: 'none',
                                     borderRadius: '6px',
                                     cursor: 'pointer',
@@ -444,7 +443,7 @@ const App: React.FC = () => {
                                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                                 }}
                             >
-                                📊 전체 그룹 비교 (그래프 뷰어 열기)
+                                📊
                             </button>
                         </div>
                         {history.length === 0 ? (
@@ -562,7 +561,7 @@ const App: React.FC = () => {
                     }}>
                         <h3 style={{ marginTop: 0, color: '#e74c3c' }}>⚠️ 삭제 확인</h3>
                         <p style={{ color: '#2c3e50', marginBottom: '30px' }}>
-                            <strong>'{deleteConfirmGroup}'</strong> 그룹의 모든 이력을<br/>영구적으로 삭제하시겠습니까?
+                            <strong>'{deleteConfirmGroup}'</strong> 그룹의 모든 이력을<br />영구적으로 삭제하시겠습니까?
                         </p>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
                             <button
