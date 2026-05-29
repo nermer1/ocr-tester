@@ -26,6 +26,7 @@ const App: React.FC = () => {
     const [history, setHistory] = useState<any[]>([]);
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
     const [elapsedTime, setElapsedTime] = useState<number>(0);
+    const [totalDelay, setTotalDelay] = useState<number>(0);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [isGraphDialogOpen, setIsGraphDialogOpen] = useState<boolean>(false);
     const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<string | null>(null);
@@ -94,9 +95,16 @@ const App: React.FC = () => {
         setResult(`🚀 총 ${files.length}개의 파일 분석을 시작합니다...\n\n`);
         setIsProcessing(true);
         setElapsedTime(0);
+        setTotalDelay(0);
 
         let logs = `🚀 총 ${files.length}개의 파일 분석을 시작합니다...\n\n`;
-        const chunkSize = 5;
+        const isUpstageV1 = agentId === '' || agentId === 'UPSTAGE_V1';
+        // Upstage V1 API의 경우 Rate Limit (too_many_requests)을 피하기 위해 1개씩 순차 처리
+        const chunkSize = isUpstageV1 ? 1 : 5;
+        // V1의 경우 요청 간격이 너무 짧아도 제한에 걸리므로 대기 (현재 테스트를 위해 1000ms로 설정)
+        const delayBetweenChunks = isUpstageV1 ? 1000 : 0; 
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
         let successCount = 0;
         let failCount = 0;
 
@@ -114,7 +122,7 @@ const App: React.FC = () => {
                     const startTime = Date.now();
                     try {
                         const response = await window.api.requestOCR({ filePath, description, groupName, agentId });
-                        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
                         successCount++;
                         return `✅ [성공] ${file.name} - ${duration}초 소요`;
                     } catch (error: any) {
@@ -127,6 +135,13 @@ const App: React.FC = () => {
 
                 logs += chunkResults.join('\n') + '\n';
                 setResult(logs);
+
+                // 다음 청크가 남아있고 딜레이가 설정되어 있다면 대기
+                if (delayBetweenChunks > 0 && i + chunkSize < files.length) {
+                    setResult(logs + `\n⏳ API 과부하 방지를 위해 ${delayBetweenChunks / 1000}초 대기 중...\n`);
+                    setTotalDelay(prev => prev + (delayBetweenChunks / 1000));
+                    await delay(delayBetweenChunks);
+                }
             }
 
             logs += `\n🎉 모든 분석이 완료되었습니다!\n✅ 성공: ${successCount}건, ❌ 실패: ${failCount}건`;
@@ -397,7 +412,9 @@ const App: React.FC = () => {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '0.95em', color: '#555', fontWeight: 'bold' }}>
                                             <span>{isProcessing ? '서버 응답 대기 중...' : '✅ 분석 완료!'}</span>
                                             <span style={{ color: isProcessing ? '#e74c3c' : '#27ae60' }}>
-                                                {isProcessing ? `${elapsedTime.toFixed(1)}초 경과` : `총 ${elapsedTime.toFixed(1)}초 소요됨`}
+                                                {isProcessing 
+                                                    ? `${elapsedTime.toFixed(2)}초 경과${totalDelay > 0 ? ` (순수: ${Math.max(0, elapsedTime - totalDelay).toFixed(2)}초)` : ''}` 
+                                                    : `총 ${elapsedTime.toFixed(2)}초 소요됨${totalDelay > 0 ? ` (순수: ${Math.max(0, elapsedTime - totalDelay).toFixed(2)}초)` : ''}`}
                                             </span>
                                         </div>
                                         {isProcessing && (
