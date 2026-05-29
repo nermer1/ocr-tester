@@ -67,37 +67,70 @@ const GraphDialogInner: React.FC<GraphDialogProps> = ({ allHistory, groupList, o
         return initial;
     });
 
-    // 선택된 그룹들의 데이터 준비 및 최대 반복 횟수 계산
+    // 선택된 그룹들의 데이터 수집 및 고유 식별자 생성
     const compareItemsMap: Record<string, any[]> = {};
-    let maxIterations = 0;
+    const uniqueKeysSet = new Set<string>();
 
     Array.from(compareGroups).forEach(g => {
-        const items = allHistory
+        // 1. 상태, 필터 조건에 맞는 항목만 필터링
+        const filtered = allHistory
             .filter(itm => (itm.groupName || '미지정 그룹') === g)
             .filter(itm => itm.status === 'SUCCESS')
-            .filter(itm => filterType === 'ALL' || (itm.apiType || 'V2') === filterType)
-            .reverse();
+            .filter(itm => filterType === 'ALL' || (itm.apiType || 'V2') === filterType);
         
-        compareItemsMap[g] = items;
-        if (items.length > maxIterations) {
-            maxIterations = items.length;
-        }
+        // 2. 요청 시간(requestTime) 기준으로 오름차순 정렬 (먼저 요청된 것이 먼저 오도록)
+        // (requestTime이 같은 문자열 형태이더라도 Date 파싱 후 비교, 또는 순차 생성된 문자열이므로 로케일 비교 가능)
+        const sortedItems = [...filtered].sort((a, b) => {
+            const timeA = new Date(a.requestTime).getTime() || 0;
+            const timeB = new Date(b.requestTime).getTime() || 0;
+            return timeA - timeB;
+        });
+
+        // 3. 파일명별 등장 횟수를 카운트하며 고유 식별자 생성
+        const fileCountMap: Record<string, number> = {};
+        const itemsWithKey = sortedItems.map(itm => {
+            const fName = itm.fileName || 'unknown';
+            fileCountMap[fName] = (fileCountMap[fName] || 0) + 1;
+            const uniqueKey = `${fName} (${fileCountMap[fName]})`;
+            uniqueKeysSet.add(uniqueKey);
+            return { ...itm, _uniqueKey: uniqueKey };
+        });
+
+        compareItemsMap[g] = itemsWithKey;
     });
 
-    // 그래프 병합 데이터 생성
-    const data = [];
-    for (let i = 0; i < maxIterations; i++) {
-        const row: any = { name: `${i + 1}회차` };
+    // 4. 모든 그룹에서 수집된 고유 식별자(Unique Keys)를 정렬
+    // 1차 정렬: 파일명 순서, 2차 정렬: (1), (2) 등 차수 순서
+    const sortedUniqueKeys = Array.from(uniqueKeysSet).sort((a, b) => {
+        // 정규식으로 파일명과 차수를 분리 (예: "test.png (1)")
+        const matchA = a.match(/^(.*) \((\d+)\)$/);
+        const matchB = b.match(/^(.*) \((\d+)\)$/);
+        
+        const nameA = matchA ? matchA[1] : a;
+        const numA = matchA ? parseInt(matchA[2], 10) : 0;
+        
+        const nameB = matchB ? matchB[1] : b;
+        const numB = matchB ? parseInt(matchB[2], 10) : 0;
+
+        const nameCmp = nameA.localeCompare(nameB);
+        if (nameCmp !== 0) return nameCmp;
+        return numA - numB;
+    });
+
+    // 5. 그래프 병합 데이터 생성
+    const data = sortedUniqueKeys.map(uniqueKey => {
+        const row: any = { name: uniqueKey };
         
         Array.from(compareGroups).forEach((g, idx) => {
-            const comp = compareItemsMap[g][i];
+            // 그룹 데이터 중 해당 식별자를 가진 항목 찾기
+            const comp = compareItemsMap[g].find(itm => itm._uniqueKey === uniqueKey);
             const safeKey = `comp_${idx}`;
             row[`${safeKey}_time`] = comp ? parseFloat(String(comp.durationSec || '0').replace('초', '')) : null;
             row[`${safeKey}_data`] = comp || null;
         });
 
-        data.push(row);
-    }
+        return row;
+    });
 
     return (
         <div style={{
